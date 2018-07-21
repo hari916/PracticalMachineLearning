@@ -1,0 +1,119 @@
+---
+title: "Practical Machine Learning Week4 Project"
+author: "Hari"
+date: "21 July 2018"
+output: html_document
+---
+
+###Machine Learning  - Prediction Assignment Writeup
+
+###Introduction
+####The main goal of the project is to predict whether 6 participants did the exercise correctly. Machine learning algorithm will be applied to the 20 different test cases available in the test data.
+
+###Background
+####Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+###Loading Data and Preprocessing the Data
+####The training data for this project are available at:https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+####The test data are available at:https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+###Data Pre-processing
+####Upload all the required libraries
+```{r libraries}
+library(knitr)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+```
+####Data Loading and cleaning
+##### load the dataset from the URL above. The training dataset is partinioned in 2.
+#####Training set (70% of the data) for the modeling process and a Test set (with the remaining 30%) for the validations.
+```{r dataload}
+setwd("C:/Users/Hari/Documents/rwork/pracMacLearn" )
+#set the url
+trainfl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testfl  <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+# download the datasets
+training <- read.csv(url(trainfl))
+testing  <- read.csv(url(testfl))
+
+# create a partition with the training dataset 
+inTrain  <- createDataPartition(training$classe, p=0.7, list=FALSE)
+TrainSet <- training[inTrain, ]
+TestSet  <- training[-inTrain, ]
+dim(TrainSet)
+dim(TestSet)
+```
+# Clean Data
+####Train and test datasets has 160 variables.These variables have NA hence need to perform the cleaning of the data, also remove the near zero variance and id variables
+
+```{r nzv}
+# remove variables with Nearly Zero Variance
+NZV <- nearZeroVar(TrainSet)
+TrainSet <- TrainSet[, -NZV]
+TestSet  <- TestSet[, -NZV]
+dim(TrainSet)
+dim(TestSet)
+```
+
+```{r na}
+#remove NA variables
+removeNA    <- sapply(TrainSet, function(x) mean(is.na(x))) > 0.95
+TrainSet <- TrainSet[, removeNA==FALSE]
+TestSet  <- TestSet[, removeNA==FALSE]
+dim(TrainSet)
+dim(TestSet)
+```
+```{r id}
+# remove identification variables
+TrainSet <- TrainSet[, -(1:5)]
+TestSet  <- TestSet[, -(1:5)]
+dim(TrainSet)
+dim(TestSet)
+```
+####Cleaning process reduced the variables to 54.
+
+###Prediction Model Building
+####Will apply Random Forest and Decision Tree methods to model the regression on Train dataset, and the best one is used on the Test dataset for prediction.
+#### Confusion Matrix is plotted at the end to better visualize the accuracy of the models.
+###Random Forest
+
+``` {r forest}
+# model fit
+set.seed(12345)
+RFcontrol <- trainControl(method="cv", number=3, verboseIter=FALSE)
+modFitRandForest <- train(classe ~ ., data=TrainSet, method="rf",
+                          trControl=RFcontrol)
+modFitRandForest$finalModel
+
+#Prediction on test dataset
+predictRandForest <- predict(modFitRandForest, newdata=TestSet)
+confMatRandForest <- confusionMatrix(predictRandForest, TestSet$classe)
+confMatRandForest
+```
+
+###Decision Trees
+``` {r D1}
+# model fit
+set.seed(12345)
+modFitDTree <- rpart(classe ~ ., data=TrainSet, method="class")
+rpart.plot(modFitDTree)
+
+# prediction on test dataset
+predictDTree <- predict(modFitDTree, newdata=TestSet, type="class")
+confDTree <- confusionMatrix(predictDTree, TestSet$classe)
+confDTree
+```
+###Predicting on the Testing Data
+####The accuracy of the above regression modeling methods are:
+####Random Forest : 0.9966
+####Decision Tree : 0.7495
+
+###Conclusion
+####We observer from the confusion matrix that the Random Forest model is very accurate. Now this prediction model will be used to predict 20 different test cases (using testing dataset).
+```{r predict}
+PredictDT <- predict(modFitRandForest,newdata=testing)
+PredictDT
+```
